@@ -1,1 +1,1 @@
-Equipement Pro 2
+EquipementPro
