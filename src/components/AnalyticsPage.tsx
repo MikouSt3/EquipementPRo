@@ -13,106 +13,223 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { useOrders } from '../hooks/useOrders';
+import { useProducts } from '../hooks/useProducts';
+import { useCustomers } from '../hooks/useCustomers';
+import LoadingSpinner from './LoadingSpinner';
+import ErrorMessage from './ErrorMessage';
 
-// Sample data for demonstration
-const generateHourlyData = () => {
-  const hours = [];
-  for (let i = 0; i <= 23; i++) {
-    hours.push({
-      hour: `${i}h`,
-      revenue: Math.random() * 3000,
-      sales: Math.floor(Math.random() * 10),
-      averageTicket: Math.random() * 500 + 100,
-    });
-  }
-  return hours;
-};
 
-const generateDailyData = () => {
-  const days = [];
-  for (let i = 1; i <= 30; i++) {
-    days.push({
-      day: i,
-      revenue: Math.random() * 5000 + 1000,
-      sales: Math.floor(Math.random() * 50) + 10,
-      customers: Math.floor(Math.random() * 30) + 5,
-    });
-  }
-  return days;
-};
-
-const generateWeeklyData = () => {
-  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return weekDays.map(day => ({
-    day,
-    revenue: Math.random() * 8000 + 2000,
-    sales: Math.floor(Math.random() * 100) + 20,
-    customers: Math.floor(Math.random() * 50) + 10,
-  }));
-};
-
-const generateMonthlyData = () => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return months.map(month => ({
-    month,
-    revenue: Math.random() * 50000 + 10000,
-    sales: Math.floor(Math.random() * 500) + 100,
-    customers: Math.floor(Math.random() * 200) + 50,
-  }));
-};
-
-const categoryData = [
-  { name: 'Electronics', value: 35, color: '#10B981' },
-  { name: 'Clothing', value: 25, color: '#3B82F6' },
-  { name: 'Food', value: 20, color: '#F59E0B' },
-  { name: 'Books', value: 12, color: '#EF4444' },
-  { name: 'Others', value: 8, color: '#8B5CF6' },
-];
 
 const AnalyticsPage: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState<'HOUR' | 'DAY' | 'WEEK DAY' | 'MONTH'>('HOUR');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
 
-  // Sample KPI data
-  const [kpiData, setKpiData] = useState({
-    revenue: 3000.00,
-    sales: 1,
-    averageTicket: 3000.00,
-    profits: 0.00,
-    customers: 156,
-    conversionRate: 2.5,
-    bestHour: '13h',
-    worstHour: '3h',
-  });
+  // Get real data from hooks
+  const { orders, loading: ordersLoading, error: ordersError } = useOrders();
+  const { products, loading: productsLoading } = useProducts();
+  const { customers, loading: customersLoading } = useCustomers();
 
-  const [chartData, setChartData] = useState(generateHourlyData());
+  const loading = ordersLoading || productsLoading || customersLoading;
+  const error = ordersError;
 
-  // Simulate data loading
+  // Process real data for analytics
   useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
-      switch (selectedPeriod) {
-        case 'HOUR':
-          setChartData(generateHourlyData());
-          break;
-        case 'DAY':
-          setChartData(generateDailyData());
-          break;
-        case 'WEEK DAY':
-          setChartData(generateWeeklyData());
-          break;
-        case 'MONTH':
-          setChartData(generateMonthlyData());
-          break;
+    if (!orders.length) return;
+
+    const processedData = processOrdersForChart(orders, selectedPeriod);
+    setChartData(processedData);
+
+    // Process category data
+    const categoryStats = processCategoryData(orders, products);
+    setCategoryData(categoryStats);
+  }, [orders, products, selectedPeriod]);
+
+  const processOrdersForChart = (orders: any[], period: string) => {
+    const now = new Date();
+    const data: any[] = [];
+
+    switch (period) {
+      case 'HOUR':
+        // Generate hourly data for today
+        for (let i = 0; i <= 23; i++) {
+          const hourOrders = orders.filter(order => {
+            const orderDate = new Date(order.created_at);
+            return orderDate.toDateString() === now.toDateString() && 
+                   orderDate.getHours() === i;
+          });
+          
+          const revenue = hourOrders.reduce((sum, order) => sum + order.total, 0);
+          const sales = hourOrders.length;
+          const averageTicket = sales > 0 ? revenue / sales : 0;
+          
+          data.push({
+            hour: `${i}h`,
+            revenue,
+            sales,
+            averageTicket,
+          });
+        }
+        break;
+        
+      case 'DAY':
+        // Generate daily data for last 30 days
+        for (let i = 29; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(date.getDate() - i);
+          
+          const dayOrders = orders.filter(order => {
+            const orderDate = new Date(order.created_at);
+            return orderDate.toDateString() === date.toDateString();
+          });
+          
+          const revenue = dayOrders.reduce((sum, order) => sum + order.total, 0);
+          const sales = dayOrders.length;
+          const customers = new Set(dayOrders.map(order => order.customer_id)).size;
+          
+          data.push({
+            day: date.getDate(),
+            revenue,
+            sales,
+            customers,
+          });
+        }
+        break;
+        
+      case 'WEEK DAY':
+        // Generate weekly data
+        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        weekDays.forEach((day, index) => {
+          const dayOrders = orders.filter(order => {
+            const orderDate = new Date(order.created_at);
+            return orderDate.getDay() === (index + 1) % 7; // Adjust for Monday start
+          });
+          
+          const revenue = dayOrders.reduce((sum, order) => sum + order.total, 0);
+          const sales = dayOrders.length;
+          const customers = new Set(dayOrders.map(order => order.customer_id)).size;
+          
+          data.push({
+            day,
+            revenue,
+            sales,
+            customers,
+          });
+        });
+        break;
+        
+      case 'MONTH':
+        // Generate monthly data for last 12 months
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        for (let i = 11; i >= 0; i--) {
+          const date = new Date(now);
+          date.setMonth(date.getMonth() - i);
+          
+          const monthOrders = orders.filter(order => {
+            const orderDate = new Date(order.created_at);
+            return orderDate.getMonth() === date.getMonth() && 
+                   orderDate.getFullYear() === date.getFullYear();
+          });
+          
+          const revenue = monthOrders.reduce((sum, order) => sum + order.total, 0);
+          const sales = monthOrders.length;
+          const customers = new Set(monthOrders.map(order => order.customer_id)).size;
+          
+          data.push({
+            month: months[date.getMonth()],
+            revenue,
+            sales,
+            customers,
+          });
+        }
+        break;
+    }
+    
+    return data;
+  };
+
+  const processCategoryData = (orders: any[], products: any[]) => {
+    const categoryStats: { [key: string]: number } = {};
+    let totalValue = 0;
+
+    orders.forEach(order => {
+      order.order_items?.forEach((item: any) => {
+        const product = products.find(p => p.id === item.product_id);
+        const category = product?.category || 'Others';
+        const value = item.price * item.quantity;
+        
+        categoryStats[category] = (categoryStats[category] || 0) + value;
+        totalValue += value;
+      });
+    });
+
+    const colors = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280', '#EC4899'];
+    
+    return Object.entries(categoryStats)
+      .map(([name, value], index) => ({
+        name,
+        value: totalValue > 0 ? Math.round((value / totalValue) * 100) : 0,
+        color: colors[index % colors.length],
+      }))
+      .sort((a, b) => b.value - a.value);
+  };
+
+  // Calculate KPIs from real data
+  const calculateKPIs = () => {
+    const today = new Date();
+    const todayOrders = orders.filter(order => {
+      const orderDate = new Date(order.created_at);
+      return orderDate.toDateString() === today.toDateString();
+    });
+
+    const revenue = todayOrders.reduce((sum, order) => sum + order.total, 0);
+    const sales = todayOrders.length;
+    const averageTicket = sales > 0 ? revenue / sales : 0;
+    const profits = 0; // Would need cost data to calculate
+    const totalCustomers = customers.length;
+    
+    // Find best and worst hours
+    const hourlyStats: { [key: number]: { revenue: number, sales: number } } = {};
+    todayOrders.forEach(order => {
+      const hour = new Date(order.created_at).getHours();
+      if (!hourlyStats[hour]) {
+        hourlyStats[hour] = { revenue: 0, sales: 0 };
       }
-      setLoading(false);
-    }, 500);
+      hourlyStats[hour].revenue += order.total;
+      hourlyStats[hour].sales += 1;
+    });
+    
+    let bestHour = '0h';
+    let worstHour = '0h';
+    let maxRevenue = 0;
+    let minRevenue = Infinity;
+    
+    Object.entries(hourlyStats).forEach(([hour, stats]) => {
+      if (stats.revenue > maxRevenue) {
+        maxRevenue = stats.revenue;
+        bestHour = `${hour}h`;
+      }
+      if (stats.revenue < minRevenue) {
+        minRevenue = stats.revenue;
+        worstHour = `${hour}h`;
+      }
+    });
+    
+    return {
+      revenue,
+      sales,
+      averageTicket,
+      profits,
+      customers: totalCustomers,
+      conversionRate: 0, // Would need visitor data
+      bestHour,
+      worstHour,
+    };
+  };
 
-    return () => clearTimeout(timer);
-  }, [selectedPeriod]);
-
+  const kpiData = calculateKPIs();
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
       weekday: 'long',
@@ -128,7 +245,6 @@ const AnalyticsPage: React.FC = () => {
   };
 
   const exportData = () => {
-    // Simulate export functionality
     const dataStr = JSON.stringify(chartData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
@@ -155,19 +271,24 @@ const AnalyticsPage: React.FC = () => {
     return null;
   };
 
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col bg-gray-50">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <h1 className="text-2xl font-semibold text-gray-900">Analytics</h1>
+        </div>
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="text-red-500 text-lg font-medium mb-2">Error Loading Analytics</div>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            Retry
-          </button>
+      <div className="flex-1 flex flex-col bg-gray-50">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <h1 className="text-2xl font-semibold text-gray-900">Analytics</h1>
         </div>
+        <ErrorMessage message={error} onRetry={() => window.location.reload()} />
       </div>
     );
   }
@@ -405,45 +526,52 @@ const AnalyticsPage: React.FC = () => {
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Sales by Category</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={categoryData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={100}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {categoryData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          formatter={(value: any) => [`${value}%`, 'Percentage']}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {categoryData.map((category, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div 
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: category.color }}
-                          ></div>
-                          <span className="text-sm font-medium text-gray-900">{category.name}</span>
+                {categoryData.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={categoryData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {categoryData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: any) => [`${value}%`, 'Percentage']}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {categoryData.map((category, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div 
+                              className="w-4 h-4 rounded-full"
+                              style={{ backgroundColor: category.color }}
+                            ></div>
+                            <span className="text-sm font-medium text-gray-900">{category.name}</span>
+                          </div>
+                          <span className="text-sm text-gray-600">{category.value}%</span>
                         </div>
-                        <span className="text-sm text-gray-600">{category.value}%</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="text-gray-500">No sales data available</div>
+                    <p className="text-sm text-gray-400 mt-1">Complete some sales to see category breakdown</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
