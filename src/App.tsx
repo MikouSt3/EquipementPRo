@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, ChevronDown, BarChart3, List } from 'lucide-react';
+import PinLogin from './components/PinLogin';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ProductGrid from './components/ProductGrid';
@@ -20,6 +21,7 @@ import { useNotification } from './hooks/useNotification';
 import { Customer } from './types';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeSection, setActiveSection] = useState('sell');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
@@ -101,6 +103,17 @@ function App() {
   const handleBackFromCheckout = () => {
     setShowCheckout(false);
   };
+
+  const handleLogin = (success: boolean) => {
+    if (success) {
+      setIsAuthenticated(true);
+    }
+  };
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <PinLogin onLogin={handleLogin} />;
+  }
 
   if (activeSection === 'customers') {
     return (
