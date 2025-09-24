@@ -25,7 +25,8 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onAddProduct, onEditProduct
   const totalStock = products.reduce((sum, product) => sum + product.stock, 0);
   const lowStockCount = products.filter(product => product.stock <= product.minStock).length;
   const outOfStockCount = products.filter(product => product.stock === 0).length;
-  const lowStockProducts = products.filter(product => product.stock <= product.minStock);
+  const lowStockProducts = products.filter(product => product.stock > 0 && product.stock <= product.minStock);
+  const outOfStockProducts = products.filter(product => product.stock === 0);
 
   const handleDeleteProduct = async (productId: string) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
@@ -64,35 +65,99 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onAddProduct, onEditProduct
 
       <div className="flex-1 p-6">
         {/* Low Stock Notification */}
-        {lowStockCount > 0 && showLowStockNotification && (
+        {(lowStockProducts.length > 0 || outOfStockProducts.length > 0) && showLowStockNotification && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
             <div className="flex items-start justify-between">
               <div className="flex items-start space-x-3">
                 <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5" />
                 <div>
-                  <h3 className="text-sm font-medium text-orange-800">
-                    Low Stock Alert
+                  {outOfStockProducts.length > 0 && (
+                    <>
+                      <h3 className="text-sm font-medium text-red-800">
+                        Out of Stock Alert
+                      </h3>
+                      <p className="text-sm text-red-700 mt-1">
+                        {outOfStockProducts.length} product{outOfStockProducts.length > 1 ? 's are' : ' is'} out of stock:
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {outOfStockProducts.slice(0, 3).map((product) => (
+                          <div key={product.id} className="text-sm text-red-700">
+                            • <span className="font-medium">{product.name}</span> - Out of stock
+                          </div>
+                        ))}
+                        {outOfStockProducts.length > 3 && (
+                          <div className="text-sm text-red-700">
+                            • and {outOfStockProducts.length - 3} more out of stock...
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  
+                  {lowStockProducts.length > 0 && (
+                    <>
+                      <h3 className={`text-sm font-medium ${outOfStockProducts.length > 0 ? 'mt-4' : ''} text-orange-800`}>
+                        Low Stock Alert
+                      </h3>
+                      <p className="text-sm text-orange-700 mt-1">
+                        {lowStockProducts.length} product{lowStockProducts.length > 1 ? 's are' : ' is'} running low on stock:
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {lowStockProducts.slice(0, 3).map((product) => (
+                          <div key={product.id} className="text-sm text-orange-700">
+                            • <span className="font-medium">{product.name}</span> - {product.stock} left (min: {product.minStock})
+                          </div>
+                        ))}
+                        {lowStockProducts.length > 3 && (
+                          <div className="text-sm text-orange-700">
+                            • and {lowStockProducts.length - 3} more running low...
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLowStockNotification(false)}
+                className="text-orange-400 hover:text-orange-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Out of Stock Notification - Separate red notification for critical items */}
+        {outOfStockProducts.length > 0 && !showLowStockNotification && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">
+                    Critical: Out of Stock
                   </h3>
-                  <p className="text-sm text-orange-700 mt-1">
-                    {lowStockCount} product{lowStockCount > 1 ? 's are' : ' is'} running low on stock:
+                  <p className="text-sm text-red-700 mt-1">
+                    {outOfStockProducts.length} product{outOfStockProducts.length > 1 ? 's are' : ' is'} completely out of stock and cannot be sold.
                   </p>
                   <div className="mt-2 space-y-1">
-                    {lowStockProducts.slice(0, 3).map((product) => (
-                      <div key={product.id} className="text-sm text-orange-700">
-                        • <span className="font-medium">{product.name}</span> - {product.stock} left (min: {product.minStock})
+                    {outOfStockProducts.slice(0, 5).map((product) => (
+                      <div key={product.id} className="text-sm text-red-700">
+                        • <span className="font-medium">{product.name}</span> - Needs restocking
                       </div>
                     ))}
-                    {lowStockProducts.length > 3 && (
-                      <div className="text-sm text-orange-700">
-                        • and {lowStockProducts.length - 3} more...
+                    {outOfStockProducts.length > 5 && (
+                      <div className="text-sm text-red-700">
+                        • and {outOfStockProducts.length - 5} more out of stock...
                       </div>
                     )}
                   </div>
                 </div>
               </div>
               <button
-                onClick={() => setShowLowStockNotification(false)}
-                className="text-orange-400 hover:text-orange-600 transition-colors"
+                onClick={() => {/* Could add separate state for this notification */}}
+                className="text-red-400 hover:text-red-600 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -167,8 +232,8 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onAddProduct, onEditProduct
               <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
               Low in stock
             </div>
-            <div className={`text-lg font-semibold ${lowStockCount > 0 ? 'text-orange-600' : ''}`}>
-              {lowStockCount}
+            <div className={`text-lg font-semibold ${lowStockProducts.length > 0 ? 'text-orange-600' : ''}`}>
+              {lowStockProducts.length}
             </div>
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -226,6 +291,12 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onAddProduct, onEditProduct
                   
                   <div className="col-span-1">
                     <span className="text-sm text-gray-900">{product.stock}</span>
+                    {product.stock === 0 && (
+                      <div className="text-xs text-red-600 font-medium">Out of stock</div>
+                    )}
+                    {product.stock > 0 && product.stock <= product.minStock && (
+                      <div className="text-xs text-orange-600 font-medium">Low stock</div>
+                    )}
                   </div>
                   
                   <div className="col-span-2">
