@@ -23,7 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
     { id: 'products', label: 'Products', icon: Package },
     { id: 'catalog', label: 'Online Catalog', icon: Home },
     { id: 'customers', label: 'Customers', icon: Users },
-    { id: 'transactions', label: 'Transactions', icon: CreditCard },
+    { id: 'reparation', label: 'Reparation', icon: CreditCard },
     { id: 'finances', label: 'Finances', icon: TrendingUp },
     { id: 'analytics', label: 'Analytics', icon: PieChart },
   ];
